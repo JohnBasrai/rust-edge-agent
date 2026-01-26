@@ -1,0 +1,31 @@
+# Rust
+/target
+Cargo.lock
+**/*.rs.bk
+*.pdb
+*.txt
+*.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*#
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+make-source-tar.sh
+tokn-sync.tar.gz
+/act-install.sh
+/postgres.log
