@@ -29,3 +29,4 @@ make-source-tar.sh
 tokn-sync.tar.gz
 /act-install.sh
 /postgres.log
+/make-edge-sync.gz

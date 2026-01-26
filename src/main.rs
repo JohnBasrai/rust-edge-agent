@@ -1,3 +1,9 @@
+mod agent;
+mod runtime;
+
+pub use runtime::LifecycleState;
+
 fn main() {
-    println!("Hello world from {}!", std::env::consts::ARCH);
+    // ---
+    agent::run();
 }
