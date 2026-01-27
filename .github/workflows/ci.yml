@@ -12,11 +12,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -42,9 +37,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -76,11 +68,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            qemu-user
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+            gcc-aarch64-linux-gnu libc6-arm64-cross
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -101,6 +89,12 @@ jobs:
       - name: AArch64 cross-build
         run: scripts/ci-build-aarch64.sh
 
+      - name: Upload AArch64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-edge-agent-aarch64
+          path: target/aarch64-unknown-linux-gnu/release/rust-edge-agent
+
   qemu-smoke:
     runs-on: ubuntu-latest
     needs: aarch64-build
@@ -111,7 +105,16 @@ jobs:
       - name: Install QEMU
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user
+          sudo apt-get install -y \
+              qemu-user \
+              libc6-arm64-cross \
+              libstdc++6-arm64-cross
+
+      - name: Download AArch64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-edge-agent-aarch64
+          path: target/aarch64-unknown-linux-gnu/release
 
       - name: QEMU AArch64 smoke test
         run: scripts/ci-qemu-smoke.sh
