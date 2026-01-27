@@ -1,3 +1,5 @@
+//! Runtime primitives for the edge agent.
+
 mod lifecycle;
 
-pub use lifecycle::LifecycleState;
+pub use lifecycle::LifecycleState; // Lifecycle

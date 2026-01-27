@@ -1,9 +1,11 @@
 mod agent;
+mod messaging;
 mod runtime;
 
-pub use runtime::LifecycleState;
+use runtime::LifecycleState;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // ---
     agent::run();
 }
