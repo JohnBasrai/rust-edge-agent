@@ -1,6 +1,8 @@
 # rust-edge-agent
 
-A Rust-based embedded Linux edge agent designed to run on ARM64 (AArch64) systems, with a focus on cross-compilation, messaging, and build discipline.
+[![CI](https://github.com/JohnBasrai/rust-edge-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnBasrai/rust-edge-agent/actions/workflows/ci.yml)
+
+A Rust-based embedded Linux edge agent targeting ARM64 (AArch64), focused on cross-compilation, messaging primitives, and reproducible build workflows.
 
 This project explores how to build and reason about **edge systems as constrained distributed systems**, rather than firmware or device drivers.
 
