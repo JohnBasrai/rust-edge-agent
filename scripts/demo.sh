@@ -11,6 +11,10 @@ else
   MODE="interactive"
 fi
 
+echo "$0: NUM_DEVICES     : ${NUM_DEVICES}"
+echo "$0: DEVICE_INTERVAL : ${DEVICE_INTERVAL}"
+echo "$0: MODE            : ${MODE}"
+
 # Start edge agent in background
 ./target/release/rust-edge-agent &
 AGENT_PID=$!
@@ -23,7 +27,7 @@ for i in $(seq 1 $NUM_DEVICES); do
     1) MODE_ARG="actuator"; TYPE_ARG="valve" ;;
     2) MODE_ARG="hybrid"; TYPE_ARG="propulsion" ;;
   esac
-  
+  printf "%s: Starting device:%2d mode:%-10s TYPE:%-12s\n" $0 $i ${MODE_ARG} ${TYPE_ARG}
   ./target/release/device_sim \
     --id "device-$(printf "%03d" $i)" \
     --mode $MODE_ARG \

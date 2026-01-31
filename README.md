@@ -48,6 +48,28 @@ This repository intentionally avoids expanding into those areas in order to keep
 - Docker (for NATS broker)
 - Rust toolchain (see `rust-toolchain.toml`)
 - For cross-compilation: `gcc-aarch64-linux-gnu` and `qemu-user`
+- nats CLI (`apt-get install nats-io/nats-tools/nats` or equivalent)
+- localhost:4222 available
+
+Required:
+- Docker
+- Rust (stable)
+- QEMU user emulation
+
+Install on Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  qemu-user \
+  gcc-aarch64-linux-gnu \
+  libc6-arm64-cross
+```
+Optional (for local inspection):
+```bash
+sudo apt-get install -y natscli
+```
+macOS users may install equivalents via Homebrew, but CI and official
+support assume a Debian-based Linux environment.
 
 ### Running the Demo
 
