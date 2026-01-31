@@ -2,4 +2,4 @@
 
 mod lifecycle;
 
-pub use lifecycle::LifecycleState; // Lifecycle
+pub use lifecycle::{Lifecycle, LifecycleState};

@@ -63,6 +63,58 @@ The agent is a single long-running process with a clearly defined lifecycle and 
 
 JetStream is **not required** for this project but is discussed as an optional extension.
 
+### NATS vs MQTT
+
+This project uses **NATS** rather than MQTT, despite MQTT being common in edge/IoT deployments.
+
+**Rationale:**
+- **Request/reply semantics**: NATS provides native request/reply, avoiding the need to implement correlation IDs manually
+- **Simpler implementation**: Focus on edge gateway coordination logic rather than message correlation
+- **Phase 2 scope**: The correlation problem inherent in pure MQTT pub/sub will be addressed as a reusable `mqtt-rpc` library
+
+NATS allows us to demonstrate gateway patterns cleanly while deferring the correlation complexity to a future abstraction layer that can be applied to MQTT, AMQP, or other pub/sub transports.
+
+---
+
+## Phase 1 Implementation
+
+The current implementation demonstrates core gateway patterns:
+
+**Device Simulators:**
+- Three operational modes: sensor, actuator, hybrid
+- Device types: temperature, humidity, valve, propulsion
+- Configurable telemetry intervals
+- Simulated value generation with random walk
+
+**NATS Subject Design:**
+```
+# Device → Agent
+devices.<device-id>.telemetry    (pub)
+devices.<device-id>.status        (pub, reserved for future)
+
+# Backend → Agent → Device
+backend.command.<device-id>       (request/reply, agent subscribes)
+devices.<device-id>.command       (request/reply, device subscribes)
+
+# Agent → Backend
+backend.telemetry                 (pub, aggregated forwarding)
+```
+
+**Message Flow:**
+1. Device simulators publish telemetry to `devices.<id>.telemetry`
+2. Edge agent subscribes to `devices.*.telemetry` (wildcard)
+3. Agent updates device registry and forwards to `backend.telemetry`
+4. Backend sends commands to `backend.command.<id>`
+5. Agent routes to device via `devices.<id>.command` (request/reply)
+6. Device responds with status, agent forwards response to backend
+
+**Command Timeout Handling:**
+- Agent uses NATS request/reply with default timeout
+- Returns error response if device unreachable
+- Backend caller receives either device response or timeout error
+
+The agent is a single long-running process with a clearly defined lifecycle and explicit separation between control and telemetry concerns.
+
 ---
 
 ### Control Plane (Request / Reply)

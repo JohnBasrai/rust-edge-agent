@@ -5,6 +5,7 @@ tar cfvz make-edge-sync.gz \
     .github \
     .gitignore \
     CHANGELOG.md \
+    CONTRIBUTING.md \
     Cargo.lock \
     Cargo.toml \
     LICENSE \

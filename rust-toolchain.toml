@@ -1,4 +1,5 @@
 [toolchain]
+msrv = "1.84.0"  # Minimum Supported Rust Version
 channel = "1.92.0"
 profile = "minimal"
 components = ["rustfmt", "clippy"]

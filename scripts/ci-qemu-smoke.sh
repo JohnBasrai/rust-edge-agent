@@ -26,9 +26,16 @@ if [ -n "${DEBUG}" ] ; then
     echo "$0: === Running ARM64 binary under QEMU ==="
 fi
 chmod +x "$BIN"
+set +e
+OUT="$(timeout 5s qemu-aarch64 -L /usr/aarch64-linux-gnu "$BIN")"
 
-OUT="$(qemu-aarch64 -L /usr/aarch64-linux-gnu "$BIN")"
+status=$?
 
 echo "$OUT"
 
-echo "$OUT" | grep -q "Hello world from aarch64!"
+if [ "$status" != 124 ]; then
+    echo "$0: test failed"
+    exit 1
+fi
+echo "$0: test passed"
+exit 0

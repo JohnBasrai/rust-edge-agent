@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/JohnBasrai/rust-edge-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnBasrai/rust-edge-agent/actions/workflows/ci.yml)
 
-This project focuses on the mechanics of building and validating an embedded Linux edge agent—specifically cross-compilation, runtime correctness, and reproducible CI workflows.
+This project demonstrates edge gateway patterns through cross-compilation, NATS messaging, and device coordination. Phase 1 implements device simulators and command routing to establish gateway architecture foundations.
 
-Higher-level distributed-system behaviors (coordination, failure handling, and reconnect semantics) are minimal at this stage and intentionally deferred.
+Current state: Working NATS-based edge agent with device simulators demonstrating sensor/actuator patterns, command routing, and telemetry aggregation.
 
 ## What this is
 
@@ -39,6 +39,73 @@ This repository intentionally avoids expanding into those areas in order to keep
   * agent lifecycle
   * messaging flow
   * reconnect behavior
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Docker (for NATS broker)
+- Rust toolchain (see `rust-toolchain.toml`)
+- For cross-compilation: `gcc-aarch64-linux-gnu` and `qemu-user`
+- nats CLI (`apt-get install nats-io/nats-tools/nats` or equivalent)
+- localhost:4222 available
+
+Required:
+- Docker
+- Rust (stable)
+- QEMU user emulation
+
+Install on Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  qemu-user \
+  gcc-aarch64-linux-gnu \
+  libc6-arm64-cross
+```
+Optional (for local inspection):
+```bash
+sudo apt-get install -y natscli
+```
+macOS users may install equivalents via Homebrew, but CI and official
+support assume a Debian-based Linux environment.
+
+### Running the Demo
+
+**1. Start NATS broker**
+```bash
+./scripts/service-start.sh
+```
+
+**2. Build the project**
+```bash
+cargo build --release
+```
+
+**3. Run the demo** (starts edge agent + 3 device simulators)
+```bash
+./scripts/demo.sh
+```
+
+The demo starts:
+- Edge agent listening for device telemetry and backend commands
+- 3 device simulators (sensor, actuator, hybrid modes)
+
+**Monitor telemetry:**
+```bash
+nats sub 'backend.telemetry'
+```
+
+**Send command to actuator:**
+```bash
+nats req 'backend.command.device-002' '{"target_value": 75.0}'
+```
+
+**4. Cleanup**
+```bash
+./scripts/service-stop.sh
+```
 
 ---
 

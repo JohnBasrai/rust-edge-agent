@@ -1,11 +1,11 @@
-mod agent;
-mod messaging;
-mod runtime;
-
-use runtime::LifecycleState;
+use anyhow::{anyhow, Result};
+use rust_edge_agent::run;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // ---
-    agent::run();
+    match run().await {
+        Ok(_) => Ok(()),
+        Err(err) => Err(anyhow!("Error:{err}")),
+    }
 }

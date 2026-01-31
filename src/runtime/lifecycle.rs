@@ -17,6 +17,13 @@ pub struct Lifecycle {
     state: LifecycleState,
 }
 
+impl Default for Lifecycle {
+    // ---
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Lifecycle {
     /// Create a new lifecycle starting in `Init`.
     #[allow(dead_code)]
