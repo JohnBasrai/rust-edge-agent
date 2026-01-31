@@ -2,9 +2,17 @@
 
 [![CI](https://github.com/JohnBasrai/rust-edge-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnBasrai/rust-edge-agent/actions/workflows/ci.yml)
 
-This project demonstrates edge gateway patterns through cross-compilation, NATS messaging, and device coordination. Phase 1 implements device simulators and command routing to establish gateway architecture foundations.
+This repository explores design patterns for an edge gateway responsible for coordinating heterogeneous devices via a brokered control plane. The focus is on message-based command routing, device lifecycle tracking, and telemetry aggregation, with an emphasis on correctness, observability, and deployability across architectures.
 
 Current state: Working NATS-based edge agent with device simulators demonstrating sensor/actuator patterns, command routing, and telemetry aggregation.
+
+## Scope and Intent
+
+This project is intentionally scoped to explore edge gateway coordination patterns rather than end-device protocols.
+
+The gateway coordinates heterogeneous devices through a brokered control plane, handling command routing, telemetry aggregation, and device lifecycle tracking. The implementation emphasizes correctness and explicit state management over throughput or protocol coverage.
+
+Cross-compilation to AArch64 and execution under QEMU are used to validate that the system behaves correctly as a long-running service across architectures.
 
 ## What this is
 
@@ -12,7 +20,7 @@ Current state: Working NATS-based edge agent with device simulators demonstratin
 - Built in **Rust**, targeting **AArch64 (ARM64)** via cross-compilation
 - Designed to run on **embedded Linux**, not bare metal
 - Uses **NATS** for edge ↔ backend messaging
-- Built with **Cargo as the primary build system**, with **Bazel as an orchestration layer**
+- Built with **Cargo as the primary build system**
 - Validated using **QEMU user-mode emulation** to execute AArch64 binaries on an x86_64 host
 - Includes consideration of:
   - toolchain correctness
@@ -30,6 +38,17 @@ Current state: Working NATS-based edge agent with device simulators demonstratin
 - Not intended to showcase UI, cloud dashboards, or mobile clients
 
 This repository intentionally avoids expanding into those areas in order to keep the scope constrained.
+
+## What This Demonstrates
+
+This project is intentionally scoped to demonstrate edge gateway patterns that commonly appear in real deployments:
+
+- Coordinating heterogeneous devices (sensor, actuator, hybrid) behind a
+  single control plane
+- Separating device concerns from transport concerns using a message broker
+- Handling intermittent devices via timeouts and retry semantics
+- Designing long-running edge services that can be cross-compiled and
+  validated under emulation (AArch64 + QEMU)
 
 ## Important Files
 
@@ -138,11 +157,10 @@ qemu-aarch64 -L /usr/aarch64-linux-gnu \
     target/aarch64-unknown-linux-gnu/release/rust-edge-agent
 ```
 
-Expected output:
+Expected behavior:
 
-```
-Hello world from aarch64!
-```
+The binary executes successfully under QEMU and begins normal agent startup. The process is expected to continue running until terminated. This initial smoke test was introduced early to validate toolchain
+correctness before agent logic was added.
 
 This smoke test verifies:
 
