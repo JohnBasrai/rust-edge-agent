@@ -12,16 +12,16 @@ This project is intentionally scoped to explore edge gateway coordination patter
 
 The gateway coordinates heterogeneous devices through a brokered control plane, handling command routing, telemetry aggregation, and device lifecycle tracking. The implementation emphasizes correctness and explicit state management over throughput or protocol coverage.
 
-Cross-compilation to AArch64 and execution under QEMU are used to validate that the system behaves correctly as a long-running service across architectures.
+Cross-compilation to `AArch64` and execution under `QEMU` are used to validate that the system behaves correctly as a long-running service across architectures.
 
 ## What this is
 
 - A **Linux-based edge agent** intended for embedded or gateway-class systems
-- Built in **Rust**, targeting **AArch64 (ARM64)** via cross-compilation
+- Built in **Rust**, targeting **`AArch64` (`ARM64`)** via cross-compilation
 - Designed to run on **embedded Linux**, not bare metal
 - Uses **NATS** for edge ↔ backend messaging
 - Built with **Cargo as the primary build system**
-- Validated using **QEMU user-mode emulation** to execute AArch64 binaries on an x86_64 host
+- Validated using **`QEMU` user-mode emulation** to execute `AArch64` binaries on an x86_64 host
 - Includes consideration of:
   - toolchain correctness
   - failure modes and reconnect behavior
@@ -48,11 +48,11 @@ This project is intentionally scoped to demonstrate edge gateway patterns that c
 - Separating device concerns from transport concerns using a message broker
 - Handling intermittent devices via timeouts and retry semantics
 - Designing long-running edge services that can be cross-compiled and
-  validated under emulation (AArch64 + QEMU)
+  validated under emulation (`AArch64` + `QEMU`)
 
 ## Important Files
 
-* `docs/architecture.md`
+* [docs/architecture.md](docs/architecture.md)
   High-level diagram + text:
 
   * agent lifecycle
@@ -73,7 +73,7 @@ This project is intentionally scoped to demonstrate edge gateway patterns that c
 Required:
 - Docker
 - Rust (stable)
-- QEMU user emulation
+- `QEMU` user emulation
 
 Install on Ubuntu/Debian:
 ```bash
@@ -130,7 +130,7 @@ nats req 'backend.command.device-002' '{"target_value": 75.0}'
 
 ## Cross-compilation smoke test
 
-Before introducing agent logic, this repository verifies that an AArch64 (ARM64) binary can be built on an x86_64 host and executed using QEMU user-mode emulation.
+Before introducing agent logic, this repository verifies that an `AArch64` (`ARM64`) binary can be built on an x86_64 host and executed using `QEMU` user-mode emulation.
 
 This establishes toolchain correctness before any higher-level functionality is introduced.
 
@@ -150,23 +150,23 @@ This produces the following binary:
 target/aarch64-unknown-linux-gnu/release/rust-edge-agent
 ```
 
-### Execute under QEMU
+### Execute under `QEMU`
 
 ```
 qemu-aarch64 -L /usr/aarch64-linux-gnu \
     target/aarch64-unknown-linux-gnu/release/rust-edge-agent
 ```
 
-Expected behavior:
+**Expected behavior:**
 
-The binary executes successfully under QEMU and begins normal agent startup. The process is expected to continue running until terminated. This initial smoke test was introduced early to validate toolchain
+The binary executes successfully under `QEMU` and begins normal agent startup. The process is expected to continue running until terminated. This initial smoke test was introduced early to validate toolchain
 correctness before agent logic was added.
 
 This smoke test verifies:
 
 * Rust cross-compilation to `AArch64`
 * Correct linker and sysroot configuration
-* Ability to execute `AArch64` binaries using QEMU user-mode emulation
+* Ability to execute `AArch64` binaries using `QEMU` user-mode emulation
 
 Subsequent development assumes this baseline.
 
@@ -191,13 +191,13 @@ The following scripts live under `scripts/` and are invoked directly by GitHub A
 
 * `scripts/ci-build-aarch64.sh`
   - Cross-compiles the agent for `aarch64-unknown-linux-gnu`
-  - Produces an ARM64 Linux ELF binary:
+  - Produces an `ARM64` Linux ELF binary:
 
     `target/aarch64-unknown-linux-gnu/release/rust-edge-agent`
 
 * `scripts/ci-qemu-smoke.sh`
-  - Executes the ARM64 binary using QEMU user-mode emulation
-  - Validates runtime correctness against an explicit ARM64 sysroot
+  - Executes the `ARM64` binary using `QEMU` user-mode emulation
+  - Validates runtime correctness against an explicit `ARM64` sysroot
   - Fails if the binary does not successfully execute
 
 These scripts are designed to be runnable locally and are used directly by CI.
