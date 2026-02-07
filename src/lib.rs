@@ -1,17 +1,27 @@
 //! Rust edge agent library.
+//!
+//! Provides components for building edge gateway systems that bridge
+//! backend services (via NATS) with local devices (via MQTT+mom-rpc).
+
 mod agent;
-mod messaging;
+pub mod messaging;
 mod runtime;
 
+// Agent runtime
 pub use agent::{run, DeviceRegistry, DeviceState};
-pub use messaging::{
-    // ---
-    all_backend_commands,
-    all_device_telemetry,
-    backend_telemetry,
-    connect_with_retry,
-    device_command,
-    device_telemetry,
-};
-pub use messaging::{CommandRequest, CommandResponse, DeviceType, TelemetryMessage};
+
+// Runtime lifecycle management
 pub use runtime::{Lifecycle, LifecycleState};
+
+// Re-export commonly used messaging types for convenience
+pub use messaging::{
+    //
+    ActuatorState,
+    CommandRequest,
+    CommandResponse,
+    DeviceMode,
+    DeviceType,
+    RegisterRequest,
+    RegisterResponse,
+    TelemetryMessage,
+};

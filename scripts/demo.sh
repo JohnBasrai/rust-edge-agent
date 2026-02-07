@@ -15,9 +15,27 @@ echo "$0: NUM_DEVICES     : ${NUM_DEVICES}"
 echo "$0: DEVICE_INTERVAL : ${DEVICE_INTERVAL}"
 echo "$0: MODE            : ${MODE}"
 
+# Kill any stale processes from previous runs
+echo "$0: Checking for stale processes..."
+if pgrep -x rust-edge-agent >/dev/null 2>&1; then
+  echo "$0: WARNING: Found existing rust-edge-agent processes. Killing..."
+  pkill -9 rust-edge-agent || true
+  sleep 0.5
+fi
+
+if pgrep -x device_sim >/dev/null 2>&1; then
+  echo "$0: WARNING: Found existing device_sim processes. Killing..."
+  pkill -9 device_sim || true
+  sleep 0.5
+fi
+
 # Start edge agent in background
 ./target/release/rust-edge-agent &
 AGENT_PID=$!
+echo "$0: Started agent (PID: $AGENT_PID)"
+
+# Give agent time to start
+sleep 1
 
 # Start device simulators
 DEVICE_PIDS=()
@@ -37,13 +55,42 @@ for i in $(seq 1 $NUM_DEVICES); do
 done
 
 cleanup() {
-  echo "Cleaning up..."
-  kill $AGENT_PID 2>/dev/null || true
-  for pid in "${DEVICE_PIDS[@]}"; do
-    kill $pid 2>/dev/null || true
+  echo ""
+  echo "$0: Cleaning up..."
+  
+  # Kill agent
+  if [ -n "${AGENT_PID:-}" ] && ps -p $AGENT_PID >/dev/null 2>&1; then
+    echo "$0: Stopping agent (PID: $AGENT_PID)..."
+    kill $AGENT_PID 2>/dev/null || true
+    sleep 0.5
+    # Force kill if still running
+    if ps -p $AGENT_PID >/dev/null 2>&1; then
+      kill -9 $AGENT_PID 2>/dev/null || true
+    fi
+  fi
+  
+  # Kill devices
+  for pid in "${DEVICE_PIDS[@]:-}"; do
+    if ps -p $pid >/dev/null 2>&1; then
+      echo "$0: Stopping device (PID: $pid)..."
+      kill $pid 2>/dev/null || true
+    fi
   done
+  
+  # Wait a bit, then force kill any stragglers
+  sleep 0.5
+  for pid in "${DEVICE_PIDS[@]:-}"; do
+    if ps -p $pid >/dev/null 2>&1; then
+      echo "$0: Force killing device (PID: $pid)..."
+      kill -9 $pid 2>/dev/null || true
+    fi
+  done
+  
+  echo "$0: Cleanup complete"
 }
-trap cleanup EXIT
+
+# Trap EXIT, INT (Ctrl+C), and TERM signals
+trap cleanup EXIT INT TERM
 
 if [ "$MODE" = "ci" ]; then
   # CI mode: run automated checks, then exit
