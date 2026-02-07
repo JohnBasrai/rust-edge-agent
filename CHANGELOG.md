@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+## [0.3.1] - 2026-02-07
+
+### Changed
+
+- Enable `clippy::uninlined_format_args` lint and convert format strings to inline syntax
+- Replace `std::process::exit()` with idiomatic `Result`/`bail!()` error handling
+- Add package metadata (keywords, categories, description)
+
 ## [0.3.0] - 2026-02-06
 
 ### Changed

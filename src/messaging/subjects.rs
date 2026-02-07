@@ -4,28 +4,28 @@
 #[allow(dead_code)]
 pub fn device_telemetry(device_id: &str) -> String {
     // ---
-    format!("devices.{}.telemetry", device_id)
+    format!("devices.{device_id}.telemetry")
 }
 
 /// Construct device status subject.
 #[allow(dead_code)]
 pub fn device_status(device_id: &str) -> String {
     // ---
-    format!("devices.{}.status", device_id)
+    format!("devices.{device_id}.status")
 }
 
 /// Construct device command subject (for device to subscribe).
 #[allow(dead_code)]
 pub fn device_command(device_id: &str) -> String {
     // ---
-    format!("devices.{}.command", device_id)
+    format!("devices.{device_id}.command",)
 }
 
 /// Construct backend command subject (for agent to subscribe).
 #[allow(dead_code)]
 pub fn backend_command(device_id: &str) -> String {
     // ---
-    format!("backend.command.{}", device_id)
+    format!("backend.command.{device_id}",)
 }
 
 /// Backend telemetry aggregation subject.
