@@ -1,6 +1,6 @@
 #!/bin/bash
 
-tar cfvz make-edge-sync.gz \
+tar cfvz edge-sync.gz \
     .cargo \
     .github \
     .gitignore \

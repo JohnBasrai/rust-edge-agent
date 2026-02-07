@@ -1,5 +1,34 @@
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-06
+
+### Changed
+- **BREAKING**: Replaced NATS device communication with MQTT + mom-rpc
+  - Devices now connect via MQTT instead of NATS
+  - Uses mom-rpc v0.3.0 for RPC semantics over MQTT
+  - Agent acts as NATS (backend) ↔ MQTT (devices) bridge
+  - Requires MQTT broker (mosquitto) on port 1883
+
+### Added
+- Dependencies: `mom-rpc = "0.3.0"`, `env_logger = "0.11"`
+- Environment variable: `MQTT_BROKER_URL` (default: `mqtt://localhost:1883`)
+- Enhanced startup logging for debugging
+- Pre-flight stale process check in demo script
+
+### Infrastructure
+- `service-start.sh` now starts both NATS and MQTT brokers
+- Docker compose includes mosquitto container
+
+### Migration from v0.2.x
+- MQTT broker required (port 1883): `./scripts/service-start.sh`
+- Set `MQTT_BROKER_URL` environment variable if not using default
+- Old NATS-only device code incompatible - devices must use MQTT
+- Backend/cloud API unchanged (still uses NATS)
+
+### Known Issues
+- demo.sh cleanup trap needs manual `pkill -9 rust-edge-agent device_sim` after Ctrl+C
+
+
 ## [0.2.0] – 2026-01-31
 
 ### Added
