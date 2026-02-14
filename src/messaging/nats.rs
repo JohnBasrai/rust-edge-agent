@@ -17,7 +17,7 @@ pub async fn connect_with_retry(url: &str) -> Client {
     loop {
         match async_nats::connect(url).await {
             Ok(client) => {
-                eprintln!("Connected to NATS at {}", url);
+                eprintln!("Connected to NATS at {url}");
                 return client;
             }
             Err(e) => {
@@ -27,7 +27,7 @@ pub async fn connect_with_retry(url: &str) -> Client {
                     30_u64
                 };
 
-                eprintln!("NATS connection failed: {}, retrying in {}s...", e, delay);
+                eprintln!("NATS connection failed: {e}, retrying in {delay}s...",);
                 tokio::time::sleep(Duration::from_secs(delay)).await;
                 retry_count += 1;
             }

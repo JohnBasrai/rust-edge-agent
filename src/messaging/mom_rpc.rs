@@ -47,17 +47,11 @@ pub async fn create_transport_with_retry(broker_url: &str, client_id: &str) -> T
 
         match create_transport(&config).await {
             Ok(transport) => {
-                eprintln!(
-                    "Connected to MQTT broker at {} (client_id: {})",
-                    broker_url, client_id
-                );
+                eprintln!("Connected to MQTT broker at {broker_url} (client_id: {client_id})",);
                 return transport;
             }
             Err(e) => {
-                eprintln!(
-                    "MQTT connection failed: {}, retrying in {:?}...",
-                    e, backoff
-                );
+                eprintln!("MQTT connection failed: {e}, retrying in {backoff:?}...",);
                 sleep(backoff).await;
                 backoff = (backoff * 2).min(Duration::from_secs(30));
             }

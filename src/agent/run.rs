@@ -164,8 +164,9 @@ pub async fn run() -> Result<()> {
     loop {
         tokio::select! {
             Some(msg) = command_sub.next() => {
-                if let Err(e) = handle_backend_command(&nats_client, &agent_client, &devices, msg).await {
-                    eprintln!("agent:: Command error: {}", e);
+                if let Err(e) = handle_backend_command(
+                    &nats_client, &agent_client, &devices, msg).await {
+                    eprintln!("agent:: Command error: {e}");
                 }
             }
         }
@@ -241,7 +242,7 @@ async fn handle_backend_command(
         }
     };
 
-    eprintln!("agent:: Backend command for device: {}", device_id);
+    eprintln!("agent:: Backend command for device: {device_id}");
 
     // Look up device
     let device = {
@@ -252,11 +253,11 @@ async fn handle_backend_command(
     let device = match device {
         Some(d) => d,
         None => {
-            eprintln!("agent:: Device not registered: {}", device_id);
+            eprintln!("agent:: Device not registered: {device_id}");
             if let Some(reply) = msg.reply {
                 let error_response = CommandResponse {
                     status: "error".to_string(),
-                    message: Some(format!("Device not registered: {}", device_id)),
+                    message: Some(format!("Device not registered: {device_id}")),
                 };
                 let payload = serde_json::to_vec(&error_response)?;
                 let _ = nats_client.publish(reply, payload.into()).await;
@@ -275,18 +276,18 @@ async fn handle_backend_command(
 
     match result {
         Ok(response) => {
-            eprintln!("agent:: Command success: {:?}", response);
+            eprintln!("agent:: Command success: {response:?}");
             if let Some(reply) = msg.reply {
                 let payload = serde_json::to_vec(&response)?;
                 let _ = nats_client.publish(reply, payload.into()).await;
             }
         }
         Err(e) => {
-            eprintln!("agent:: Command failed: {}", e);
+            eprintln!("agent:: Command failed: {e}");
             if let Some(reply) = msg.reply {
                 let error_response = CommandResponse {
                     status: "error".to_string(),
-                    message: Some(format!("Device unreachable: {}", e)),
+                    message: Some(format!("Device unreachable: {e}")),
                 };
                 let payload = serde_json::to_vec(&error_response)?;
                 let _ = nats_client.publish(reply, payload.into()).await;

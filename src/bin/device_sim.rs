@@ -3,7 +3,7 @@
 //! Simulates sensors, actuators, or hybrid devices using mom-rpc over MQTT.
 //! Each device registers with the agent on startup and responds to RPC calls.
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::Parser;
 use mom_rpc::{RpcClient, RpcServer};
 use rust_edge_agent::messaging::{
@@ -50,8 +50,8 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let args = Args::parse();
-    let device_type = parse_device_type(&args.r#type);
-    let mode = parse_device_mode(&args.mode);
+    let device_type = parse_device_type(&args.r#type)?;
+    let mode = parse_device_mode(&args.mode)?;
 
     eprintln!(
         "[device_sim] Starting: {} (mode: {:?}, type: {:?})",
@@ -66,14 +66,14 @@ async fn main() -> Result<()> {
     };
 
     // Create shared MQTT transport
-    let transport_id = format!("{}-transport", service_name);
+    let transport_id = format!("{service_name}-transport");
     let transport = create_transport_with_retry(&args.mqtt_broker, &transport_id).await;
 
     // Create RPC server (receives calls from agent)
     let server = RpcServer::with_transport(transport.clone(), &service_name);
 
     // Create RPC client (calls agent for registration)
-    let client_id = format!("{}-client", service_name);
+    let client_id = format!("{service_name}-client");
     let client = RpcClient::with_transport(transport.clone(), &client_id).await?;
 
     // Shared state for sensor value simulation
@@ -101,7 +101,7 @@ async fn main() -> Result<()> {
     let server_handle = server.spawn();
 
     // Register with agent (with retry)
-    eprintln!("[{}] Registering with agent...", service_name);
+    eprintln!("[{service_name}] Registering with agent...");
     let register_req = RegisterRequest {
         device_id: args.id.clone(),
         device_type,
@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
             Ok(resp) => {
                 let response: RegisterResponse = resp;
                 if response.accepted {
-                    eprintln!("[{}] Registration accepted", service_name);
+                    eprintln!("[{service_name}] Registration accepted");
                     break;
                 } else {
                     eprintln!(
@@ -134,14 +134,13 @@ async fn main() -> Result<()> {
                 retry_count += 1;
                 if retry_count > max_retries {
                     eprintln!(
-                        "[{}] Registration failed after {} attempts: {}",
-                        service_name, max_retries, e
+                        "[{service_name}] Registration failed after {max_retries} attempts: {e}",
                     );
                     return Ok(());
                 }
                 eprintln!(
-                    "[{}] Registration attempt {}/{} failed: {}. Retrying in {:?}...",
-                    service_name, retry_count, max_retries, e, retry_delay
+                    "[{service_name}] Registration attempt {retry_count}/{max_retries}\
+                     failed: {e}. Retrying in {retry_delay:?}...",
                 );
                 tokio::time::sleep(retry_delay).await;
                 retry_delay = (retry_delay * 2).min(Duration::from_secs(5));
@@ -157,11 +156,11 @@ async fn main() -> Result<()> {
         });
     }
 
-    eprintln!("[{}] Device running (Ctrl+C to stop)", service_name);
+    eprintln!("[{service_name}] Device running (Ctrl+C to stop)");
 
     // Wait for server shutdown
     if let Err(e) = server_handle.await {
-        eprintln!("[{}] Server error: {}", service_name, e);
+        eprintln!("[{service_name}] Server error: {e}");
     }
 
     Ok(())
@@ -241,27 +240,29 @@ async fn simulate_sensor_values(state: Arc<Mutex<DeviceState>>, interval: u64) {
     }
 }
 
-fn parse_device_type(s: &str) -> DeviceType {
-    match s {
+fn parse_device_type(s: &str) -> anyhow::Result<DeviceType> {
+    // --
+    let device_type = match s {
         "temp" => DeviceType::Temperature,
         "humidity" => DeviceType::Humidity,
         "valve" => DeviceType::Valve,
         "propulsion" => DeviceType::Propulsion,
         _ => {
-            eprintln!("Invalid device type: {}", s);
-            std::process::exit(1);
+            bail!("Invalid device type: {s}");
         }
-    }
+    };
+    Ok(device_type)
 }
 
-fn parse_device_mode(s: &str) -> DeviceMode {
-    match s {
+fn parse_device_mode(s: &str) -> Result<DeviceMode> {
+    // --
+    let dev_mode = match s {
         "sensor" => DeviceMode::Sensor,
         "actuator" => DeviceMode::Actuator,
         "hybrid" => DeviceMode::Hybrid,
         _ => {
-            eprintln!("Invalid device mode: {}", s);
-            std::process::exit(1);
+            bail!("Invalid device mode: {s}");
         }
-    }
+    };
+    Ok(dev_mode)
 }
