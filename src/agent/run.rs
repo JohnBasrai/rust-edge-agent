@@ -1,7 +1,6 @@
 use super::registry::DeviceRegistry;
 use crate::messaging::{
     //
-    self,
     CommandRequest,
     CommandResponse,
     DeviceMode,
@@ -13,7 +12,7 @@ use anyhow::{anyhow, Result};
 use async_nats::Client;
 use clap::Parser;
 use futures::StreamExt;
-use mom_rpc::{RpcClient, RpcServer};
+use mom_rpc::{RpcBroker, RpcBrokerBuilder, TransportBuilder};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,6 +22,7 @@ use tokio::sync::Mutex;
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
+    // ---
     /// NATS server URL (for backend communication)
     #[arg(long, env = "NATS_URL", default_value = "nats://localhost:4222")]
     nats_url: String,
@@ -43,10 +43,13 @@ struct Args {
 /// Registered device information.
 #[derive(Debug, Clone)]
 struct RegisteredDevice {
+    // ---
     #[allow(dead_code)]
     device_id: String,
+
     #[allow(dead_code)]
     device_type: crate::messaging::DeviceType,
+
     mode: DeviceMode,
     service_name: String,
 }
@@ -62,6 +65,8 @@ struct RegisteredDevice {
 /// - Routes backend commands to actuator devices
 /// - Forwards telemetry to backend via NATS
 pub async fn run() -> Result<()> {
+    // ---
+
     let args = Args::parse();
 
     eprintln!("agent:: Starting edge agent...");
@@ -71,30 +76,34 @@ pub async fn run() -> Result<()> {
     eprintln!("agent:: Poll interval: {}s", args.poll_interval);
 
     // Connect to NATS (for backend communication)
-    let nats_client = messaging::connect_nats_with_retry(&args.nats_url).await;
+    let nats_client = crate::connect_nats_with_retry(&args.nats_url).await;
 
     // Connect to MQTT (for device communication)
     eprintln!("agent:: Connecting to MQTT broker...");
-    let mqtt_transport =
-        messaging::create_transport_with_retry(&args.mqtt_broker, "agent-transport").await;
+    let transport = TransportBuilder::new()
+        .uri(&args.mqtt_broker)
+        .node_id("agent")
+        .full_duplex()
+        .build()
+        .await?;
     eprintln!("agent:: MQTT transport ready");
 
-    // Create RPC server for device registrations
-    eprintln!("agent:: Creating RPC server...");
-    let agent_server = RpcServer::with_transport(mqtt_transport.clone(), "agent");
-
-    // Create RPC client for polling devices
-    eprintln!("agent:: Creating RPC client...");
-    let agent_client = RpcClient::with_transport(mqtt_transport.clone(), "agent-client").await?;
-    eprintln!("agent:: RPC client ready");
+    // Create bidirectional RPC broker (handles both registration requests and
+    // outbound device polling/commands on a single MQTT connection)
+    let broker = RpcBrokerBuilder::new(transport)
+        .retry_max_attempts(5)
+        .request_total_timeout(Duration::from_secs(args.device_timeout))
+        .build()?;
 
     let timeout = Duration::from_secs(args.device_timeout);
     let registry = Arc::new(Mutex::new(DeviceRegistry::new(timeout)));
     let devices = Arc::new(Mutex::new(HashMap::<String, RegisteredDevice>::new()));
 
-    // Register device registration handler
+    // Register device registration handler (server-side)
     let devices_clone = devices.clone();
-    agent_server.register("register-device", move |req: RegisterRequest| {
+    broker.register_rpc_handler("register-device", move |req: RegisterRequest| {
+        // ---
+
         let devices = devices_clone.clone();
         async move {
             let service_name = match req.mode {
@@ -122,17 +131,14 @@ pub async fn run() -> Result<()> {
                 message: Some("Registration successful".to_string()),
             })
         }
-    });
+    })?;
 
-    // Spawn RPC server
-    let _server_handle = agent_server.spawn();
-    eprintln!("agent:: RPC server listening for device registrations");
+    // Spawn broker receive loop
+    let _broker_handle = broker.clone().spawn()?;
+    eprintln!("agent:: RPC broker listening for device registrations");
 
     // Subscribe to backend commands via NATS
-    let mut command_sub = match nats_client
-        .subscribe(messaging::all_backend_commands())
-        .await
-    {
+    let mut command_sub = match nats_client.subscribe(crate::all_backend_commands()).await {
         Ok(c) => c,
         Err(e) => {
             return Err(anyhow!(
@@ -146,14 +152,14 @@ pub async fn run() -> Result<()> {
     // Spawn telemetry polling task
     let devices_poll = devices.clone();
     let nats_poll = nats_client.clone();
-    let mqtt_poll = agent_client.clone();
+    let broker_poll = broker.clone();
     let registry_poll = registry.clone();
     let poll_interval = args.poll_interval;
     tokio::spawn(async move {
         poll_device_telemetry(
             devices_poll,
             nats_poll,
-            mqtt_poll,
+            broker_poll,
             registry_poll,
             poll_interval,
         )
@@ -165,7 +171,7 @@ pub async fn run() -> Result<()> {
         tokio::select! {
             Some(msg) = command_sub.next() => {
                 if let Err(e) = handle_backend_command(
-                    &nats_client, &agent_client, &devices, msg).await {
+                    &nats_client, &broker, &devices, msg).await {
                     eprintln!("agent:: Command error: {e}");
                 }
             }
@@ -177,10 +183,11 @@ pub async fn run() -> Result<()> {
 async fn poll_device_telemetry(
     devices: Arc<Mutex<HashMap<String, RegisteredDevice>>>,
     nats_client: Client,
-    mqtt_client: RpcClient,
+    broker: RpcBroker,
     registry: Arc<Mutex<DeviceRegistry>>,
     interval_secs: u64,
 ) {
+    // ---
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
 
     loop {
@@ -195,7 +202,7 @@ async fn poll_device_telemetry(
             }
 
             // Poll device for telemetry
-            let result: Result<TelemetryMessage, _> = mqtt_client
+            let result: Result<TelemetryMessage, _> = broker
                 .request_to(&device.service_name, "read-telemetry", ())
                 .await;
 
@@ -212,7 +219,7 @@ async fn poll_device_telemetry(
                     // Forward to backend via NATS
                     if let Ok(payload) = serde_json::to_vec(&telemetry) {
                         let _ = nats_client
-                            .publish(messaging::backend_telemetry(), payload.into())
+                            .publish(crate::backend_telemetry(), payload.into())
                             .await;
                     }
                 }
@@ -227,10 +234,11 @@ async fn poll_device_telemetry(
 /// Handle backend command and route to appropriate device.
 async fn handle_backend_command(
     nats_client: &Client,
-    mqtt_client: &RpcClient,
+    broker: &RpcBroker,
     devices: &Arc<Mutex<HashMap<String, RegisteredDevice>>>,
     msg: async_nats::Message,
 ) -> Result<()> {
+    // ---
     // Extract device ID from NATS subject
     let device_id = match msg.subject.strip_prefix("backend.command.") {
         Some(dev) => dev,
@@ -270,11 +278,12 @@ async fn handle_backend_command(
     let command: CommandRequest = serde_json::from_slice(&msg.payload)?;
 
     // Route to device via MQTT RPC
-    let result: Result<CommandResponse, _> = mqtt_client
+    let result: Result<CommandResponse, _> = broker
         .request_to(&device.service_name, "execute-command", command)
         .await;
 
     match result {
+        // ---
         Ok(response) => {
             eprintln!("agent:: Command success: {response:?}");
             if let Some(reply) = msg.reply {
