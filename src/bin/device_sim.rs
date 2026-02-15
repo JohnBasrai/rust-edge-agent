@@ -47,7 +47,8 @@ struct DeviceState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    // ---
+    tracing_subscriber::fmt().with_ansi(false).init();
 
     let args = Args::parse();
     let device_type = parse_device_type(&args.r#type)?;

@@ -14,10 +14,10 @@ Before running the agent locally:
 
 ```bash
 # Start NATS broker
-./scripts/service-start.sh
+./scripts/start-services.sh
 
 # When done
-./scripts/service-stop.sh
+./scripts/stop-services.sh
 ```
 
 ### Running the Demo

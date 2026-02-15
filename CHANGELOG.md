@@ -1,5 +1,25 @@
 ## [Unreleased]
 
+
+## [0.3.2] - 2026-02-15
+
+### Fixed
+- Add missing services startup to CI qemu-smoke job
+- Fix demo.sh signal handling for clean process cleanup
+- Fix MQTT_PORT interpolation in start-services.sh
+
+### Changed
+- Update mom-rpc to 0.7.3
+- Replace env_logger with tracing-subscriber
+- Disable ANSI codes in logs for better script output
+- Redirect device_sim output to /dev/null in demo
+
+### Documentation
+- Remove manual cleanup steps from README
+- Add smoke test output example
+- Rename service scripts throughout documentation
+
+
 ## [0.3.1] - 2026-02-07
 
 ### Changed
@@ -7,6 +27,7 @@
 - Enable `clippy::uninlined_format_args` lint and convert format strings to inline syntax
 - Replace `std::process::exit()` with idiomatic `Result`/`bail!()` error handling
 - Add package metadata (keywords, categories, description)
+
 
 ## [0.3.0] - 2026-02-06
 
@@ -27,6 +48,7 @@
 - `service-start.sh` now starts both NATS and MQTT brokers
 - Docker compose includes mosquitto container
 
+
 ### Migration from v0.2.x
 - MQTT broker required (port 1883): `./scripts/service-start.sh`
 - Set `MQTT_BROKER_URL` environment variable if not using default
@@ -35,7 +57,6 @@
 
 ### Known Issues
 - demo.sh cleanup trap needs manual `pkill -9 rust-edge-agent device_sim` after Ctrl+C
-
 
 ## [0.2.0] – 2026-01-31
 
