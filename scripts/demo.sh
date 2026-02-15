@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -meuo pipefail
 
 : ${NUM_DEVICES:=3}
 : ${DEVICE_INTERVAL:=5}
@@ -50,7 +50,7 @@ for i in $(seq 1 $NUM_DEVICES); do
     --id "device-$(printf "%03d" $i)" \
     --mode $MODE_ARG \
     --type $TYPE_ARG \
-    --interval $DEVICE_INTERVAL &
+    --interval $DEVICE_INTERVAL >& /dev/null &
   DEVICE_PIDS+=($!)
 done
 
@@ -90,7 +90,7 @@ cleanup() {
 }
 
 # Trap EXIT, INT (Ctrl+C), and TERM signals
-trap cleanup EXIT INT TERM
+trap cleanup INT TERM
 
 if [ "$MODE" = "ci" ]; then
   # CI mode: run automated checks, then exit
