@@ -5,10 +5,17 @@
 
 use anyhow::{bail, Result};
 use clap::Parser;
-use mom_rpc::{RpcClient, RpcServer};
+use mom_rpc::{RpcBroker, RpcBrokerBuilder, TransportBuilder};
 use rust_edge_agent::messaging::{
-    create_transport_with_retry, ActuatorState, CommandRequest, CommandResponse, DeviceMode,
-    DeviceType, RegisterRequest, RegisterResponse, TelemetryMessage,
+    // ---
+    ActuatorState,
+    CommandRequest,
+    CommandResponse,
+    DeviceMode,
+    DeviceType,
+    RegisterRequest,
+    RegisterResponse,
+    TelemetryMessage,
 };
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -17,6 +24,7 @@ use tokio::sync::Mutex;
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
+    // ---
     /// Unique device identifier (numeric)
     #[arg(long)]
     id: String,
@@ -40,6 +48,7 @@ struct Args {
 
 /// Shared device state for sensor simulation.
 struct DeviceState {
+    // ---
     device_id: String,
     device_type: DeviceType,
     current_value: f64,
@@ -67,15 +76,24 @@ async fn main() -> Result<()> {
     };
 
     // Create shared MQTT transport
-    let transport_id = format!("{service_name}-transport");
-    let transport = create_transport_with_retry(&args.mqtt_broker, &transport_id).await;
+    let transport = TransportBuilder::new()
+        .uri(&args.mqtt_broker)
+        .node_id(&service_name)
+        .full_duplex()
+        .build()
+        .await?;
 
-    // Create RPC server (receives calls from agent)
-    let server = RpcServer::with_transport(transport.clone(), &service_name);
-
-    // Create RPC client (calls agent for registration)
-    let client_id = format!("{service_name}-client");
-    let client = RpcClient::with_transport(transport.clone(), &client_id).await?;
+    // Create bidirectional RPC broker (handles both incoming agent calls
+    // and outbound registration request on a single MQTT connection)
+    let broker = RpcBrokerBuilder::new(transport)
+        .retry_max_attempts(1000)
+        .retry_initial_delay(Duration::from_millis(200))
+        .retry_max_delay(Duration::from_secs(5))
+        .request_total_timeout(Duration::from_secs(3600))
+        .build()?;
+    // max delay is 1000 x 5 => 5000 seconds, but request_total_timeout will
+    // shorten it to 3600.  The request_to_with_timeout will increase
+    // request_to_with_timeout.
 
     // Shared state for sensor value simulation
     let state = Arc::new(Mutex::new(DeviceState {
@@ -87,19 +105,19 @@ async fn main() -> Result<()> {
     // Register methods based on mode
     match mode {
         DeviceMode::Sensor => {
-            register_sensor_methods(&server, state.clone());
+            register_sensor_methods(&broker, state.clone())?;
         }
         DeviceMode::Actuator => {
-            register_actuator_methods(&server, state.clone());
+            register_actuator_methods(&broker, state.clone())?;
         }
         DeviceMode::Hybrid => {
-            register_sensor_methods(&server, state.clone());
-            register_actuator_methods(&server, state.clone());
+            register_sensor_methods(&broker, state.clone())?;
+            register_actuator_methods(&broker, state.clone())?;
         }
     }
 
-    // Spawn server to handle incoming RPC calls
-    let server_handle = server.spawn();
+    // Spawn broker receive loop
+    let broker_handle = broker.clone().spawn()?;
 
     // Register with agent (with retry)
     eprintln!("[{service_name}] Registering with agent...");
@@ -109,45 +127,38 @@ async fn main() -> Result<()> {
         mode,
     };
 
-    let mut retry_count = 0;
-    let max_retries = 10;
-    let mut retry_delay = Duration::from_millis(500);
+    // Register with agent using a very long timeout. In real deployments, the
+    // agent and devices start independently with no guaranteed ordering.  For
+    // example, in a vehicle telematics system, sensor nodes on the CAN bus may
+    // power up before the gateway agent has finished booting or reconnected
+    // after a network flap. Rather than failing fast, devices wait patiently
+    // for the agent to become reachable. The broker handles retries internally;
+    // the long ceiling here covers realistic startup delays without requiring
+    // external orchestration.
+    eprintln!("[{service_name}] Registering with agent...");
+    let timeout_seconds = 5000;
+    let response: RegisterResponse = broker
+        // Overriding default timeout.
+        .request_to_with_timeout(
+            "agent",
+            "register-device",
+            register_req.clone(),
+            Duration::from_secs(timeout_seconds),
+        )
+        .await
+        .map_err(|err| {
+            anyhow::anyhow!(
+                "[{service_name}] Registration failed after {timeout_seconds} seconds: {err}"
+            )
+        })?;
 
-    loop {
-        match client
-            .request_to("agent", "register-device", register_req.clone())
-            .await
-        {
-            Ok(resp) => {
-                let response: RegisterResponse = resp;
-                if response.accepted {
-                    eprintln!("[{service_name}] Registration accepted");
-                    break;
-                } else {
-                    eprintln!(
-                        "[{}] Registration rejected: {:?}",
-                        service_name, response.message
-                    );
-                    return Ok(());
-                }
-            }
-            Err(e) => {
-                retry_count += 1;
-                if retry_count > max_retries {
-                    eprintln!(
-                        "[{service_name}] Registration failed after {max_retries} attempts: {e}",
-                    );
-                    return Ok(());
-                }
-                eprintln!(
-                    "[{service_name}] Registration attempt {retry_count}/{max_retries}\
-                     failed: {e}. Retrying in {retry_delay:?}...",
-                );
-                tokio::time::sleep(retry_delay).await;
-                retry_delay = (retry_delay * 2).min(Duration::from_secs(5));
-            }
-        }
-    }
+    if !response.accepted {
+        bail!(
+            "[{service_name}] Registration rejected: {:?}",
+            response.message
+        );
+    };
+    eprintln!("[{service_name}] Registration accepted");
 
     // Spawn sensor value simulation task (if sensor mode)
     if matches!(mode, DeviceMode::Sensor | DeviceMode::Hybrid) {
@@ -159,17 +170,19 @@ async fn main() -> Result<()> {
 
     eprintln!("[{service_name}] Device running (Ctrl+C to stop)");
 
-    // Wait for server shutdown
-    if let Err(e) = server_handle.await {
-        eprintln!("[{service_name}] Server error: {e}");
+    // Wait for broker shutdown
+    if let Err(e) = broker_handle.await {
+        eprintln!("[{service_name}] Broker error: {e}");
     }
 
     Ok(())
 }
 
 /// Register RPC methods for sensor mode.
-fn register_sensor_methods(server: &RpcServer, state: Arc<Mutex<DeviceState>>) {
-    server.register("read-telemetry", move |_req: ()| {
+fn register_sensor_methods(broker: &RpcBroker, state: Arc<Mutex<DeviceState>>) -> Result<()> {
+    // ---
+
+    broker.register_rpc_handler("read-telemetry", move |_req: ()| {
         let state = state.clone();
         async move {
             let state = state.lock().await;
@@ -185,14 +198,16 @@ fn register_sensor_methods(server: &RpcServer, state: Arc<Mutex<DeviceState>>) {
                 value: state.current_value,
             })
         }
-    });
+    })?;
+    Ok(())
 }
 
 /// Register RPC methods for actuator mode.
-fn register_actuator_methods(server: &RpcServer, state: Arc<Mutex<DeviceState>>) {
+fn register_actuator_methods(broker: &RpcBroker, state: Arc<Mutex<DeviceState>>) -> Result<()> {
+    // ---
     // execute-command method
     let state_cmd = state.clone();
-    server.register("execute-command", move |req: CommandRequest| {
+    broker.register_rpc_handler("execute-command", move |req: CommandRequest| {
         let state = state_cmd.clone();
         async move {
             let mut state = state.lock().await;
@@ -208,10 +223,10 @@ fn register_actuator_methods(server: &RpcServer, state: Arc<Mutex<DeviceState>>)
                 message: Some(format!("Set to {:.2}", req.target_value)),
             })
         }
-    });
+    })?;
 
     // read-state method
-    server.register("read-state", move |_req: ()| {
+    broker.register_rpc_handler("read-state", move |_req: ()| {
         let state = state.clone();
         async move {
             let state = state.lock().await;
@@ -225,11 +240,14 @@ fn register_actuator_methods(server: &RpcServer, state: Arc<Mutex<DeviceState>>)
                 timestamp,
             })
         }
-    });
+    })?;
+    Ok(())
 }
 
 /// Simulate sensor value changes over time.
 async fn simulate_sensor_values(state: Arc<Mutex<DeviceState>>, interval: u64) {
+    // ---
+
     loop {
         {
             let mut state = state.lock().await;

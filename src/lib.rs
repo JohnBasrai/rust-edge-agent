@@ -15,7 +15,10 @@ pub use runtime::{Lifecycle, LifecycleState};
 
 // Re-export commonly used messaging types for convenience
 pub use messaging::{
-    //
+    // ---
+    all_backend_commands,
+    backend_telemetry,
+    connect_nats_with_retry,
     ActuatorState,
     CommandRequest,
     CommandResponse,
